@@ -393,14 +393,32 @@ constellation._16apsk_rrxpxx.MODCOD = 10
 # %%
 # Make a method of the class called show constellation eventually
 fig, ax = plt.subplots()
-x_values = constellation._16apsk_rr3p15.complex_alphabet.real
-y_values = constellation._16apsk_rr3p15.complex_alphabet.imag
+x_values = m.constellation._16apsk_rr3p15.complex_alphabet.real
+y_values = m.constellation._16apsk_rr3p15.complex_alphabet.imag
 ax.scatter(x_values, y_values)
-for point, value in enumerate(constellation._16apsk_rr3p15.decimal_alphabet):
-    ax.annotate(constellation._16apsk_rr3p15.symbol_to_decimal_mapping[point,0], (x_values[point], y_values[point]+0.15))
-    ax.annotate(constellation._16apsk_rr3p15.binary_alphabet[constellation._16apsk_rr3p15.symbol_to_decimal_mapping[point,0]], (x_values[point], y_values[point]+0.05))
+for point, value in enumerate(m.constellation._16apsk_rr3p15.decimal_alphabet):
+    ax.annotate(m.constellation._16apsk_rr3p15.symbol_to_decimal_mapping[point,0], (x_values[point], y_values[point]+0.15))
+    ax.annotate(m.constellation._16apsk_rr3p15.binary_alphabet[m.constellation._16apsk_rr3p15.symbol_to_decimal_mapping[point,0]], (x_values[point], y_values[point]+0.05))
 # %%
 # Make a method of the class called plot symbolstream eventually
 plt.scatter(m.symbol_stream.real,m.symbol_stream.imag)
 # %%
 plt.close()
+# %%
+m = Modem('bpsk')
+m.generate_pulse_shaping_filter('firrcos', 24, 0.25, 8)
+h =m.firrcos
+hh = [item for item in h.flatten()]
+import matplotlib.pyplot as plt
+plt.plot(hh)
+# %%
+%%matlab -o mat_h
+symbols = 24
+USAMPR = 8
+Rolloff=0.25
+Order = symbols*USAMPR
+mat_h = firrcos(Order, 0.5, Rolloff, USAMPR, 'rolloff', 'sqrt')
+mat_h = mat_h.*24*Rolloff
+# %%
+h = mat_h[0]
+plt.plot(h)

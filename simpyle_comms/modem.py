@@ -54,7 +54,7 @@ class Modem(object):
     def __init__(self, *args):
         self._available_modcods = ['BPSK', 'QPSK', '8PSK', '16APSK']
         # FIXME Obviously I need to add dynamic argparsing here but for now
-        self._constellation = self.initialize_constellation(args[0], 1)
+        self._constellation = self.initialize_constellation(args[0], 3.15)
 
     @property
     def available_modcods(self):
@@ -67,6 +67,135 @@ class Modem(object):
     @available_modcods.setter
     def available_modcods(self):
         pass
+
+    def generate_pulse_shaping_filter(self,
+                                      Type,
+                                      FilterLengthInSymbols,
+                                      RolloffRate,
+                                      DigitalOverSamplingRate):
+        """
+        Generates a pulse shaping filter based on the Type specified
+        and the provided parameters
+
+        Parameters
+        ----------
+
+        Type : String
+               Equal to the type of filter that you want to generate
+               in the modem.  Available options are:
+                   'firrcos', ....
+
+        FilterLengthInSymbols : int
+                                equal to the number of symbols that
+                                the filter should act on
+
+        RolloffRate : float
+                      The Rate at which the filter rolls off.
+                      Also viewed as the excess bandwidth of the filter
+                      relative to the DigitalOverSamplingRate
+
+        DigitalOverSamplingRate : int
+                                  The samplign rate of the filter
+                                  to be generated
+
+        Returns
+        -------
+
+        NONE
+
+        See Also
+        --------
+
+        Nothing currently
+
+        Example
+        -------
+
+        >>> m = Modem('BPSK')
+        >>> USAMPR = 2 # THis is the upsampling rate from critically sampled
+        >>> m.generate_random_symbol_stream(1024)
+        >>> m.upsample(USAMPR)
+        >>> m.generate_pulse_shaping_filter('firrcos', 24, 0.25, USAMPR)
+        >>> m.firrcos
+
+        This yeilds the time domain values of the filters impulse response
+        """
+        if Type.lower() == 'firrcos':
+            Order = FilterLengthInSymbols * DigitalOverSamplingRate
+            if Order % 2:
+                Order = Order + 1
+                print(('The FilterLengthInSymbols and DigitalOverSamplingRate\n'
+                       'that was provided made the filter Order odd so the\n'
+                       'order was increased by 1'))
+            SymbolRate = 1
+            Ts = 1 / SymbolRate
+            Fc = SymbolRate / 2
+            time_step = 1 / DigitalOverSamplingRate
+            firrcos = np.zeros(int(Order/2) + 1, dtype=np.complex128)
+            firrcos[0] = (1 / Ts) * \
+                        (1 - RolloffRate + ((4 * RolloffRate) / np.pi))
+            for index in range(1, len(firrcos)):
+                tx = (index * Ts) / DigitalOverSamplingRate
+                if tx == (1 / (4 * RolloffRate)):
+                    firrcos[index] = (RolloffRate / (Ts * np.sqrt(2))) * \
+                        (
+                          ((1 + (2 / np.pi)) *
+                           np.sin(np.pi / (4 * RolloffRate))) +
+                          ((1 - (2 / np.pi)) *
+                           np.cos(np.pi / (4 * RolloffRate)))
+                        )
+                else:
+                    firrcos[index] = (1/Ts) * \
+                        (
+                         ( np.sin(np.pi * (tx * (1 - RolloffRate))) +
+                           (4 * RolloffRate * tx * \
+                               np.cos(np.pi * (tx * (1 + RolloffRate))))
+                         ) /
+                         (np.pi * tx *
+                             (1 - np.power(4 * RolloffRate * tx, 2))
+                         )
+                        )
+            self.firrcos = np.hstack([firrcos[-1:0:-1],firrcos])
+#        elif Type.lower() == 'firrcosm':
+#            Order = FilterLengthInSymbols * DigitalOverSamplingRate
+#            if Order % 2:
+#                Order = Order + 1
+#                print(('The FilterLengthInSymbols and DigitalOverSamplingRate\n'
+#                       'that was provided made the filter Order odd so the\n'
+#                       'order was increased by 1'))
+#            SymbolRate = 1
+#            Ts = 1 / SymbolRate
+#            Fc = SymbolRate / 2
+#            time_step = 1 / DigitalOverSamplingRate
+#            firrcos = np.zeros(Order, dtype=np.complex128)
+
+    def upsample(self, USAMPR):
+        """
+        Upsample symbol_stream attribute by USAMPR
+
+        Parameters
+        ----------
+
+        USAMPR : int
+                 Upsampling Factor
+
+        NONE
+        self.symbol_stream : 1D np.array
+                             The modems symbol_stream attribute is upsampled
+                             in place
+
+        Returns
+        -------
+
+        NONE
+        self.symbol_stream : 1D np.array
+                             The upsampled version of the symbol_stream
+                             attribute
+        """
+        result = np.zeros(len(self.symbol_stream) * USAMPR,
+                          dtype=np.complex128)
+        result[0::USAMPR] = self.symbol_stream
+        self.symbol_stream = result
 
     def generate_random_symbol_stream(self, NumberOfSymbols):
         self.symbol_stream = np.random.choice(self.constellation[
@@ -466,6 +595,32 @@ class Functions(object):
     """
     def __init__(self, *args):
         self.pi = np.pi
+
+    @staticmethod
+    def upsample(symbol_stream, USAMPR):
+        """
+        Upsample provided symbol stream by USAMPR
+
+        Parameters
+        ----------
+
+        USAMPR : int
+                 Upsampling Factor
+
+        symbol_stream : 1D np.array
+                        An external provided symbol_stream
+
+        Returns
+        -------
+
+        symbol_stream : 1D np.array
+                        The upsampled version of the provided
+                        symbol_stream
+        """
+        result = np.zeros(len(symbol_stream) * USAMPR,
+                          dtype=np.complex128)
+        result[0::USAMPR] = symbol_stream
+        return result
 
     @property
     def document_name(self):
