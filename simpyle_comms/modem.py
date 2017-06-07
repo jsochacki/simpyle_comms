@@ -83,7 +83,14 @@ class Modem(object):
         Type : String
                Equal to the type of filter that you want to generate
                in the modem.  Available options are:
-                   'firrcos', ....
+                   'firrcosw', 'firrcosm', ....
+
+               firrcosw : implements the firrcos filter per wikipedias
+                   equations
+
+               firrcosm : implements the firrcos filter per matlabs method
+                   Note, this is per matlabs old implementation where
+                   the fileter will have unity gain
 
         FilterLengthInSymbols : int
                                 equal to the number of symbols that
@@ -115,12 +122,13 @@ class Modem(object):
         >>> USAMPR = 2 # THis is the upsampling rate from critically sampled
         >>> m.generate_random_symbol_stream(1024)
         >>> m.upsample(USAMPR)
-        >>> m.generate_pulse_shaping_filter('firrcos', 24, 0.25, USAMPR)
+        >>> m.generate_pulse_shaping_filter('firrcosw', 24, 0.25, USAMPR)
         >>> m.firrcos
 
         This yeilds the time domain values of the filters impulse response
         """
-        if Type.lower() == 'firrcos':
+        # Wikipedia Implementation
+        if Type.lower() == 'firrcosw':
             Order = FilterLengthInSymbols * DigitalOverSamplingRate
             if Order % 2:
                 Order = Order + 1
@@ -131,7 +139,7 @@ class Modem(object):
             Ts = 1 / SymbolRate
             Fc = SymbolRate / 2
             time_step = 1 / DigitalOverSamplingRate
-            firrcos = np.zeros(int(Order/2) + 1, dtype=np.complex128)
+            firrcos = np.zeros((Order // 2) + 1, dtype=np.complex128)
             firrcos[0] = (1 / Ts) * \
                         (1 - RolloffRate + ((4 * RolloffRate) / np.pi))
             for index in range(1, len(firrcos)):
@@ -156,18 +164,71 @@ class Modem(object):
                          )
                         )
             self.firrcos = np.hstack([firrcos[-1:0:-1],firrcos])
-#        elif Type.lower() == 'firrcosm':
-#            Order = FilterLengthInSymbols * DigitalOverSamplingRate
-#            if Order % 2:
-#                Order = Order + 1
-#                print(('The FilterLengthInSymbols and DigitalOverSamplingRate\n'
-#                       'that was provided made the filter Order odd so the\n'
-#                       'order was increased by 1'))
-#            SymbolRate = 1
-#            Ts = 1 / SymbolRate
-#            Fc = SymbolRate / 2
-#            time_step = 1 / DigitalOverSamplingRate
-#            firrcos = np.zeros(Order, dtype=np.complex128)
+
+        # Matlab Unity Gain Implementation
+        elif Type.lower() == 'firrcosm':
+
+            # Constants Set Up
+            SymbolRate = 1
+            Fc = SymbolRate / 2
+            Fs = DigitalOverSamplingRate
+            eps = np.finfo(np.complex128).eps
+
+            # Constants Calculation
+            Order = FilterLengthInSymbols * DigitalOverSamplingRate
+            time_step = 1 / Fs
+
+            if Order % 2:
+                print(('The FilterLengthInSymbols and DigitalOverSamplingRate\n'
+                       'that was provided made the filter Order odd so the\n'
+                       'order was increased by 1'))
+
+            # Half Array Initialization
+            n = np.arange(0, (Order // 2) + 1, 1) * time_step
+            firrcos = np.zeros((Order // 2) + 1, dtype=np.complex128)
+
+            # Center Tap Value
+            firrcos[0] = - (
+                            (np.sqrt(2 * Fc) / (np.pi * Fs)) *
+                            ((np.pi * (RolloffRate - 1)) - (4 * RolloffRate ))
+                            )
+
+            ind = np.abs(np.abs(8 * RolloffRate * Fc * n) - 1.0) < np.sqrt(eps)
+            index = [Index for Index, Value in enumerate(ind) if Value]
+
+            if len(index) == 1:
+                firrcos[index[0]] = \
+                    (np.sqrt(2 * Fc) / (2 * np.pi * Fs)) * \
+                    ( ((np.pi * (RolloffRate + 1) ) *
+                      (np.sin(np.pi * (RolloffRate + 1) /
+                              (4 * RolloffRate)))
+                      ) -
+                      (4 * RolloffRate *
+                       np.sin(np.pi * (RolloffRate - 1) / (4 * RolloffRate))
+                      ) +
+                      (
+                          (np.pi * (RolloffRate - 1)) *
+                          np.cos(np.pi * (RolloffRate - 1) / (4 * RolloffRate))
+                      )
+                    )
+            else:
+                print('This should not occur with this filter design ever'
+                      'you likely have a numerical error with the type'
+                      'you are using and the inferred types')
+
+            index = [Index for Index, Value in enumerate(firrcos) if not Value]
+            firrcos[index] = \
+                (-4 * RolloffRate / Fs) * \
+                ( np.cos((1 + RolloffRate) * 2 * np.pi * Fc * n[index]) +
+                      ( np.sin((1 - RolloffRate) * 2 * np.pi * Fc * n[index]) /
+                        (8 * RolloffRate * Fc * n[index])
+                      )
+                ) / \
+                (np.pi * np.sqrt(1 / (2 * Fc)) * \
+                    ((np.power((8 * RolloffRate * Fc * n[index]), 2)) - 1)
+                )
+            firrcos = firrcos * np.sqrt(2 * Fc)
+            self.firrcos = np.hstack([firrcos[-1:0:-1],firrcos])
 
     def upsample(self, USAMPR):
         """

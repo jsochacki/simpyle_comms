@@ -405,11 +405,15 @@ plt.scatter(m.symbol_stream.real,m.symbol_stream.imag)
 # %%
 plt.close()
 # %%
+import numpy as np
+import matplotlib.pyplot as plt
+# %%
+%load_ext pymatbridge
+# %%
 m = Modem('bpsk')
-m.generate_pulse_shaping_filter('firrcos', 24, 0.25, 8)
+m.generate_pulse_shaping_filter('firrcosm', 24, 0.25, 8)
 h =m.firrcos
 hh = [item for item in h.flatten()]
-import matplotlib.pyplot as plt
 plt.plot(hh)
 # %%
 %%matlab -o mat_h
@@ -418,7 +422,12 @@ USAMPR = 8
 Rolloff=0.25
 Order = symbols*USAMPR
 mat_h = firrcos(Order, 0.5, Rolloff, USAMPR, 'rolloff', 'sqrt')
-mat_h = mat_h.*24*Rolloff
 # %%
 h = mat_h[0]
-plt.plot(h)
+plt.plot(h, 'ro')
+# %%
+%%matlab -i hh
+fvtool(hh)
+fvtool(mat_h)
+# %%
+%unload_ext pymatbridge
