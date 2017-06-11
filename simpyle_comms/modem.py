@@ -649,6 +649,71 @@ class Modem(object):
 
         return constellation
 
+    def AWGN_ml_decoder(self):
+        """
+        This decodes the provided signal with the maximum likelihood
+
+        function [decoded_complex_stream]=AWGN_maximum_likelyhood_decoder(received_baseband_data,Constellation,complex_mapping)
+        trn=0;
+        if size(received_baseband_data,1) > size(received_baseband_data,2), received_baseband_data=received_baseband_data.';, trn=1;, end;
+
+        decoded_complex_stream=[];
+
+        for n=1:1:length(received_baseband_data)
+            MAG=[]; IND=[]; EUCDIS=[];
+            EUCDIS=(received_baseband_data(1,n)-Constellation).*(received_baseband_data(1,n)-Constellation)'.';
+            [MAG IND]=sort(EUCDIS,'ascend');
+            if sum(MAG(1)==MAG(2:1:length(MAG)))
+                decoded_complex_stream=[decoded_complex_stream randsrc(1,1,complex_mapping(EUCDIS==MAG(1)))];
+            else
+                decoded_complex_stream=[decoded_complex_stream complex_mapping(IND(1))];
+            end
+        end
+
+        if trn, decoded_complex_stream=decoded_complex_stream.';, end;
+
+        end
+        """
+        if len(argv) < 1:
+            pass
+        else:
+            pass
+        # received_baseband_data
+        # constellation
+        # complex_mapping
+
+        decoded_complex_stream = []
+        constellation = constellation.reshape(len(constellation),1)
+
+        index = np.arange(0, len(received_baseband_data))
+        magnitudes=[]; Indicies=[]; euclidean_distance=[];
+        euclidean_distance=(received_baseband_data[index] - constellation) * (received_baseband_data[index] - constellation).conjugate();
+        Indicies = euclidean_distance.argsort(axis=0)
+        [magnitudes Indicies]=sort(euclidean_distance,'ascend');
+        if sum(magnitudes(1)==magnitudes(2:1:length(magnitudes)))
+            decoded_complex_stream=[decoded_complex_stream randsrc(1,1,complex_mapping(euclidean_distance==magnitudes(1)))];
+        else
+            decoded_complex_stream=[decoded_complex_stream complex_mapping(Indicies(1))];
+        end
+
+        self.decoded_complex_stream = decoded_complex_stream
+
+    def bb_waveform_EsNo(self):
+        """
+        function [EsNo_dB]=Custom_Waveform_EsNo(rx_waveform,expected_waveform)
+        EsNo_dB=[]; PERROR_Vector=[]; PREF_Vector=[];
+
+        VERROR=[];
+        VERROR=rx_waveform-expected_waveform;
+        PERROR_Vector=VERROR.*VERROR'.';
+        PREF_Vector=expected_waveform.*expected_waveform'.';
+
+        RMS_PERROR=sqrt((1/length(PERROR_Vector))*sum(PERROR_Vector));
+        RMS_PREF=sqrt((1/length(PREF_Vector))*sum(PREF_Vector));
+        EsNo_dB=10*log10(RMS_PREF/RMS_PERROR);
+
+        end
+        """
 
 class Functions(object):
     """
